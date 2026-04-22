@@ -10,7 +10,7 @@ set -euo pipefail
 # =============================================================================
 
 read -rp "Enter hotspot SSID: " WIFI_SSID
-read -rsp "Enter hotspot password (min 8 chars): " WIFI_PASS
+read -rsp "Enter hotspot password (recommend 16+ chars): " WIFI_PASS
 echo
 
 if [ "${#WIFI_PASS}" -lt 8 ]; then
@@ -24,7 +24,8 @@ fi
 
 WLAN_IF="wlan0"          # Wi-Fi interface (hotspot/LAN side)
 WAN_IF="eth0"            # Ethernet interface (uplink/WAN side)
-HOTSPOT_NAME="rpi-hotspot"
+HOTSPOT_2G_NAME="rpi-hotspot-2g"
+HOTSPOT_5G_NAME="rpi-hotspot-5g"
 
 # =============================================================================
 # 1. SYSTEM LOCALIZATION AND WLAN REGULATORY DOMAIN
@@ -57,37 +58,57 @@ sudo systemctl enable NetworkManager
 sudo systemctl start NetworkManager
 
 # =============================================================================
-# 4. CREATE WI-FI HOTSPOT
+# 4. CREATE WI-FI HOTSPOT PROFILES
 # =============================================================================
 # NetworkManager shared mode handles:
 #   - DHCP/DNS for clients
 #   - NAT from wlan0 to the upstream network
 #   - a default hotspot subnet (unless explicitly set)
+#
+# We create two saved profiles:
+#   - 2.4 GHz: band bg, channel 6
+#   - 5 GHz:   band a,  channel 36
+#
+# WPA3-Personal uses SAE, and PMF is required.
 
-if nmcli -t -f NAME connection show | grep -Fxq "$HOTSPOT_NAME"; then
-    sudo nmcli connection delete "$HOTSPOT_NAME"
-fi
+create_hotspot_profile() {
+    local profile_name="$1"
+    local band="$2"
+    local channel="$3"
 
-sudo nmcli connection add \
-    type wifi \
-    ifname "$WLAN_IF" \
-    con-name "$HOTSPOT_NAME" \
-    autoconnect yes \
-    ssid "$WIFI_SSID"
+    if nmcli -t -f NAME connection show | grep -Fxq "$profile_name"; then
+        sudo nmcli connection delete "$profile_name"
+    fi
 
-sudo nmcli connection modify "$HOTSPOT_NAME" \
-    802-11-wireless.mode ap \
-    802-11-wireless.band bg \
-    802-11-wireless.channel 6 \
-    ipv4.method shared \
-    ipv4.addresses 10.42.0.1/24 \
-    ipv6.method ignore \
-    wifi-sec.key-mgmt wpa-psk \
-    wifi-sec.psk "$WIFI_PASS"
+    sudo nmcli connection add \
+        type wifi \
+        ifname "$WLAN_IF" \
+        con-name "$profile_name" \
+        autoconnect no \
+        ssid "$WIFI_SSID"
+
+    sudo nmcli connection modify "$profile_name" \
+        802-11-wireless.mode ap \
+        802-11-wireless.band "$band" \
+        802-11-wireless.channel "$channel" \
+        802-11-wireless.ap-isolation yes \
+        802-11-wireless.powersave 2 \
+        ipv4.method shared \
+        ipv4.addresses 10.42.0.1/24 \
+        ipv6.method ignore \
+        wifi-sec.key-mgmt sae \
+        wifi-sec.pmf required \
+        wifi-sec.psk "$WIFI_PASS"
+}
+
+create_hotspot_profile "$HOTSPOT_2G_NAME" "bg" 6
+create_hotspot_profile "$HOTSPOT_5G_NAME" "a" 36
 
 # =============================================================================
 # 5. DISABLE WI-FI POWER MANAGEMENT
 # =============================================================================
+# Keep this as a global NM knob too, in case the profile-specific setting is not
+# applied early enough during activation.
 
 sudo mkdir -p /etc/NetworkManager/conf.d
 sudo tee /etc/NetworkManager/conf.d/wifi-powersave.conf >/dev/null <<EOF
@@ -99,8 +120,8 @@ EOF
 sudo systemctl restart NetworkManager
 sleep 2
 
-# Bring hotspot back up after the restart.
-sudo nmcli connection up "$HOTSPOT_NAME"
+# Bring up the 5 GHz hotspot by default.
+sudo nmcli connection up "$HOTSPOT_5G_NAME"
 
 # =============================================================================
 # 6. FIREWALL (UFW)
@@ -149,7 +170,10 @@ EOF
 
 echo "----------------------------------------"
 echo "Router setup complete!"
-echo "SSID     : $WIFI_SSID"
-echo "LAN iface: $WLAN_IF (hotspot)"
-echo "WAN iface: $WAN_IF (upstream Ethernet)"
+echo "SSID           : $WIFI_SSID"
+echo "2.4 GHz profile: $HOTSPOT_2G_NAME"
+echo "5 GHz profile  : $HOTSPOT_5G_NAME"
+echo "Active now     : $HOTSPOT_5G_NAME"
+echo "LAN iface      : $WLAN_IF (hotspot)"
+echo "WAN iface      : $WAN_IF (upstream Ethernet)"
 echo "----------------------------------------"
