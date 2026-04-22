@@ -97,7 +97,7 @@ create_hotspot_profile() {
         ipv4.addresses 10.42.0.1/24 \
         ipv6.method ignore \
         wifi-sec.key-mgmt wpa-psk \
-        wifi-sec.pmf disable \
+        wifi-sec.pmf optional \
         wifi-sec.psk "$WIFI_PASS"
 }
 
@@ -163,6 +163,15 @@ sudo tee /etc/apt/apt.conf.d/20auto-upgrades >/dev/null <<EOF
 APT::Periodic::Update-Package-Lists "1";
 APT::Periodic::Unattended-Upgrade "1";
 EOF
+
+# =============================================================================
+# 8. AUTOSTART SETTINGS
+# =============================================================================
+
+# Ensure 5GHz autostarts and 2GHz stays as a manual backup
+sudo nmcli connection modify "$HOTSPOT_2G_NAME" connection.autoconnect no
+sudo nmcli connection modify "$HOTSPOT_5G_NAME" connection.autoconnect yes
+sudo nmcli connection modify "$HOTSPOT_5G_NAME" connection.autoconnect-priority 10
 
 # =============================================================================
 # DONE
