@@ -37,7 +37,6 @@ The script will prompt for the hotspot SSID and password (min 8 characters).
 
 ## Roadmap
 
-- [x] **WPA3**: Upgrade hotspot security from WPA2-PSK to WPA3-SAE for stronger client authentication
 - [x] **5 GHz**: Add a 5 GHz band AP profile (`802-11-wireless.band a`) alongside the existing 2.4 GHz one
 - [ ] **DNS-level ad blocking**: Integrate [Pi-hole](https://pi-hole.net) or [AdGuard Home](https://adguard.com/adguard-home.html) as the upstream DNS resolver for network-wide filtering
 - [ ] **Remote access**: [WireGuard](https://www.wireguard.com) VPN server for secure home-to-anywhere tunneling
