@@ -96,8 +96,8 @@ create_hotspot_profile() {
         ipv4.method shared \
         ipv4.addresses 10.42.0.1/24 \
         ipv6.method ignore \
-        wifi-sec.key-mgmt sae \
-        wifi-sec.pmf required \
+        wifi-sec.key-mgmt wpa-psk \
+        wifi-sec.pmf disable \
         wifi-sec.psk "$WIFI_PASS"
 }
 
